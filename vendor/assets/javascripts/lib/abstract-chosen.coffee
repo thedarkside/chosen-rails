@@ -34,6 +34,8 @@ class AbstractChosen
     @choices = 0
     @single_backstroke_delete = @options.single_backstroke_delete || false
     @max_selected_options = @options.max_selected_options || Infinity
+    @create_option = @options.create_option || false
+    @persistent_create_option = @options.persistent_create_option || false
 
   set_default_text: ->
     if @form_field.getAttribute("data-placeholder")
@@ -44,6 +46,7 @@ class AbstractChosen
       @default_text = @options.placeholder_text_single || @options.placeholder_text || "Select an Option"
 
     @results_none_found = @form_field.getAttribute("data-no_results_text") || @options.no_results_text || "No results match"
+    @create_option_text = @form_field.getAttribute("data-create_option_text") || @options.create_option_text || "Add option"
 
   mouse_enter: -> @mouse_on_container = true
   mouse_leave: -> @mouse_on_container = false
@@ -70,7 +73,10 @@ class AbstractChosen
       '<li id="' + option.dom_id + '" class="' + classes.join(' ') + '"'+style+'>' + option.html + '</li>'
     else
       ""
-
+  
+  append_option: (option) ->
+    this.select_append_option(option)
+  
   results_update_field: ->
     this.results_reset_cleanup() if not @is_multiple
     this.result_clear_highlight()

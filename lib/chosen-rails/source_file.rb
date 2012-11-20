@@ -6,7 +6,7 @@ class SourceFile < Thor
   desc "fetch source files", "fetch source files from GitHub"
   def fetch
     self.destination_root = "vendor/assets"
-    remote = "https://github.com/harvesthq/chosen"
+    remote = "https://github.com/koenpunt/chosen"
     get "#{remote}/raw/master/chosen/chosen-sprite.png", "images/chosen-sprite.png"
     get "#{remote}/raw/master/chosen/chosen.css", "stylesheets/chosen.css"
     get "#{remote}/raw/master/coffee/lib/abstract-chosen.coffee", "javascripts/lib/abstract-chosen.coffee"
