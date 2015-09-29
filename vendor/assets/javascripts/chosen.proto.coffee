@@ -48,11 +48,13 @@ class @Chosen extends AbstractChosen
     this.results_build()
     this.set_tab_index()
     this.set_label_behavior()
+
+  on_ready: ->
     @form_field.fire("chosen:ready", {chosen: this})
 
   register_observers: ->
-    @container.observe "touchstart", (evt) => this.container_mousedown(evt)
-    @container.observe "touchend", (evt) => this.container_mouseup(evt)
+    @container.observe "touchstart", (evt) => this.container_mousedown(evt); evt.preventDefault()
+    @container.observe "touchend", (evt) => this.container_mouseup(evt); evt.preventDefault()
 
     @container.observe "mousedown", (evt) => this.container_mousedown(evt)
     @container.observe "mouseup", (evt) => this.container_mouseup(evt)
@@ -284,7 +286,7 @@ class @Chosen extends AbstractChosen
     this.result_clear_highlight() if evt.target.hasClassName('active-result') or evt.target.up('.active-result')
 
   choice_build: (item) ->
-    choice = new Element('li', { class: "search-choice" }).update("<span>#{item.html}</span>")
+    choice = new Element('li', { class: "search-choice" }).update("<span>#{this.choice_label(item)}</span>")
 
     if item.disabled
       choice.addClassName 'search-choice-disabled'
@@ -354,7 +356,7 @@ class @Chosen extends AbstractChosen
       if @is_multiple
         this.choice_build item
       else
-        this.single_set_selected_text(item.text)
+        this.single_set_selected_text(this.choice_label(item))
 
       this.results_hide() unless (evt.metaKey or evt.ctrlKey) and @is_multiple
 
@@ -362,6 +364,8 @@ class @Chosen extends AbstractChosen
 
       @form_field.simulate("change") if typeof Event.simulate is 'function' && (@is_multiple || @form_field.selectedIndex != @current_selectedIndex)
       @current_selectedIndex = @form_field.selectedIndex
+
+      evt.preventDefault()
 
       this.search_field_scale()
 
@@ -398,7 +402,7 @@ class @Chosen extends AbstractChosen
     @selected_item.addClassName("chosen-single-with-deselect")
 
   get_search_text: ->
-    if @search_field.value is @default_text then "" else @search_field.value.strip().escapeHTML()
+    @search_field.value.strip().escapeHTML()
 
   winnow_results_set_highlight: ->
     if not @is_multiple
@@ -497,6 +501,9 @@ class @Chosen extends AbstractChosen
         break
       when 13
         evt.preventDefault() if this.results_showing
+        break
+      when 32
+        evt.preventDefault() if @disable_search
         break
       when 38
         evt.preventDefault()

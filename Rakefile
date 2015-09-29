@@ -4,7 +4,7 @@ require File.expand_path('../lib/chosen-rails/source_file', __FILE__)
 
 desc "Update with Harvest's Chosen Library"
 task 'update-chosen', 'repository_url', 'branch' do |task, args|
-  remote = args['repository_url'] || 'https://github.com/koenpunt/chosen'
+  remote = args['repository_url'] || 'https://github.com/cjc343/chosen'
   branch = args['branch'] || 'option_adding'
   files = SourceFile.new
   files.fetch remote, branch
