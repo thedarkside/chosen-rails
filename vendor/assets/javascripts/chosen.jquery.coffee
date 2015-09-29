@@ -8,9 +8,9 @@ $.fn.extend({
     this.each (input_field) ->
       $this = $ this
       chosen = $this.data('chosen')
-      if options is 'destroy' && chosen
+      if options is 'destroy' && chosen instanceof Chosen
         chosen.destroy()
-      else unless chosen
+      else unless chosen instanceof Chosen
         $this.data('chosen', new Chosen(this, options))
 
       return
@@ -59,13 +59,16 @@ class Chosen extends AbstractChosen
     else
       @search_container = @container.find('div.chosen-search').first()
       @selected_item = @container.find('.chosen-single').first()
-    
+
     this.results_build()
     this.set_tab_index()
     this.set_label_behavior()
     @form_field_jq.trigger("chosen:ready", {chosen: this})
 
   register_observers: ->
+    @container.bind 'touchstart.chosen', (evt) => this.container_mousedown(evt); return
+    @container.bind 'touchend.chosen', (evt) => this.container_mouseup(evt); return
+
     @container.bind 'mousedown.chosen', (evt) => this.container_mousedown(evt); return
     @container.bind 'mouseup.chosen', (evt) => this.container_mouseup(evt); return
     @container.bind 'mouseenter.chosen', (evt) => this.mouse_enter(evt); return
@@ -83,11 +86,14 @@ class Chosen extends AbstractChosen
     @form_field_jq.bind "chosen:updated.chosen", (evt) => this.results_update_field(evt); return
     @form_field_jq.bind "chosen:activate.chosen", (evt) => this.activate_field(evt); return
     @form_field_jq.bind "chosen:open.chosen", (evt) => this.container_mousedown(evt); return
+    @form_field_jq.bind "chosen:close.chosen", (evt) => this.input_blur(evt); return
 
     @search_field.bind 'blur.chosen', (evt) => this.input_blur(evt); return
     @search_field.bind 'keyup.chosen', (evt) => this.keyup_checker(evt); return
     @search_field.bind 'keydown.chosen', (evt) => this.keydown_checker(evt); return
     @search_field.bind 'focus.chosen', (evt) => this.input_focus(evt); return
+    @search_field.bind 'cut.chosen', (evt) => this.clipboard_event_checker(evt); return
+    @search_field.bind 'paste.chosen', (evt) => this.clipboard_event_checker(evt); return
 
     if @is_multiple
       @search_choices.bind 'click.chosen', (evt) => this.choices_click(evt); return
@@ -95,7 +101,7 @@ class Chosen extends AbstractChosen
       @container.bind 'click.chosen', (evt) -> evt.preventDefault(); return # gobble click of anchor
 
   destroy: ->
-    $(document).unbind "click.chosen", @click_test_action
+    $(@container[0].ownerDocument).unbind "click.chosen", @click_test_action
     if @search_field[0].tabIndex
       @form_field_jq[0].tabIndex = @search_field[0].tabIndex
 
@@ -123,7 +129,7 @@ class Chosen extends AbstractChosen
       if not (evt? and ($ evt.target).hasClass "search-choice-close")
         if not @active_field
           @search_field.val "" if @is_multiple
-          $(document).bind 'click.chosen', @click_test_action
+          $(@container[0].ownerDocument).bind 'click.chosen', @click_test_action
           this.results_show()
         else if not @is_multiple and evt and (($(evt.target)[0] == @selected_item[0]) || $(evt.target).parents("a.chosen-single").length)
           evt.preventDefault()
@@ -135,7 +141,7 @@ class Chosen extends AbstractChosen
     this.results_reset(evt) if evt.target.nodeName is "ABBR" and not @is_disabled
 
   search_results_mousewheel: (evt) ->
-    delta = -evt.originalEvent.wheelDelta or evt.originalEvent.detail if evt.originalEvent
+    delta = evt.originalEvent.deltaY or -evt.originalEvent.wheelDelta or evt.originalEvent.detail if evt.originalEvent
     if delta?
       evt.preventDefault()
       delta = delta * 40 if evt.type is 'DOMMouseScroll'
@@ -145,7 +151,7 @@ class Chosen extends AbstractChosen
     this.close_field() if not @active_field and @container.hasClass "chosen-container-active"
 
   close_field: ->
-    $(document).unbind "click.chosen", @click_test_action
+    $(@container[0].ownerDocument).unbind "click.chosen", @click_test_action
 
     @active_field = false
     this.results_hide()
@@ -165,7 +171,8 @@ class Chosen extends AbstractChosen
 
 
   test_active_click: (evt) ->
-    if @container.is($(evt.target).closest('.chosen-container'))
+    active_container = $(evt.target).closest('.chosen-container')
+    if active_container.length and @container[0] == active_container[0]
       @active_field = true
     else
       this.close_field()
@@ -180,7 +187,7 @@ class Chosen extends AbstractChosen
       @search_choices.find("li.search-choice").remove()
     else if not @is_multiple
       this.single_set_selected_text()
-      if @disable_search or @form_field.options.length <= @disable_search_threshold
+      if @disable_search or @form_field.options.length <= @disable_search_threshold and not @create_option
         @search_field[0].readOnly = true
         @container.addClass "chosen-container-single-nosearch"
       else
@@ -224,14 +231,13 @@ class Chosen extends AbstractChosen
       return false
 
     @container.addClass "chosen-with-drop"
-    @form_field_jq.trigger("chosen:showing_dropdown", {chosen: this})
-
     @results_showing = true
 
     @search_field.focus()
     @search_field.val @search_field.val()
 
     this.winnow_results()
+    @form_field_jq.trigger("chosen:showing_dropdown", {chosen: this})
 
   update_results_content: (content) ->
     @search_results.html content
@@ -291,7 +297,7 @@ class Chosen extends AbstractChosen
       close_link = $('<a />', { class: 'search-choice-close', 'data-option-array-index': item.array_index })
       close_link.bind 'click.chosen', (evt) => this.choice_destroy_link_click(evt)
       choice.append close_link
-    
+
     @search_container.before  choice
 
   choice_destroy_link_click: (evt) ->
@@ -325,6 +331,10 @@ class Chosen extends AbstractChosen
   result_select: (evt) ->
     if @result_highlight
       high = @result_highlight
+
+      if high.hasClass "create-option"
+        this.select_create_option(@search_field.val())
+        return this.results_hide()
 
       this.result_clear_highlight()
 
@@ -393,7 +403,6 @@ class Chosen extends AbstractChosen
     if @search_field.val() is @default_text then "" else $('<div/>').text($.trim(@search_field.val())).html()
 
   winnow_results_set_highlight: ->
-
     selected_results = if not @is_multiple then @search_results.find(".result-selected.active-result") else []
     do_high = if selected_results.length then selected_results.first() else @search_results.find(".active-result").first()
 
@@ -402,8 +411,28 @@ class Chosen extends AbstractChosen
   no_results: (terms) ->
     no_results_html = $('<li class="no-results">' + @results_none_found + ' "<span></span>"</li>')
     no_results_html.find("span").first().html(terms)
-
     @search_results.append no_results_html
+    @form_field_jq.trigger("chosen:no_results", {chosen:this})
+
+  show_create_option: (terms) ->
+    create_option_html = $('<li class="create-option active-result"><a>' + @create_option_text + '</a>: "' + terms + '"</li>')
+    @search_results.append create_option_html
+
+  create_option_clear: ->
+    @search_results.find(".create-option").remove()
+
+  select_create_option: (terms) ->
+    if $.isFunction(@create_option)
+      @create_option.call this, terms
+    else
+      this.select_append_option( {value: terms, text: terms} )
+
+  select_append_option: ( options ) ->
+    option = $('<option />', options ).attr('selected', 'selected')
+    @form_field_jq.append option
+    @form_field_jq.trigger "chosen:updated"
+    @form_field_jq.trigger "change"
+    @search_field.trigger "focus"
 
   no_results_clear: ->
     @search_results.find(".no-results").remove()
@@ -412,6 +441,8 @@ class Chosen extends AbstractChosen
     if @results_showing and @result_highlight
       next_sib = @result_highlight.nextAll("li.active-result").first()
       this.result_do_highlight next_sib if next_sib
+    else if @results_showing and @create_option
+      this.result_do_highlight(@search_results.find('.create-option'))
     else
       this.results_show()
 
@@ -459,7 +490,7 @@ class Chosen extends AbstractChosen
         @mouse_on_container = false
         break
       when 13
-        evt.preventDefault()
+        evt.preventDefault() if this.results_showing
         break
       when 38
         evt.preventDefault()
