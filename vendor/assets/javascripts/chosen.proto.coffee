@@ -190,6 +190,14 @@ class @Chosen extends AbstractChosen
 
     @parsing = false
 
+
+  result_add_group: (group) ->
+    if not group.disabled
+      group.dom_id = @container_id + "_g_" + group.array_index
+      '<li id="' + group.dom_id + '" class="group-result">' + group.label.escapeHTML() + '</li>'
+    else
+      ""
+
   result_do_highlight: (el) ->
       this.result_clear_highlight()
 
